@@ -24,17 +24,18 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.view.menu.MenuBuilder
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import io.github.alelk.pws.database.dao.Favorite
+import dagger.hilt.android.AndroidEntryPoint
+import io.github.alelk.pws.android.app.R
 import io.github.alelk.pws.android.app.activity.SongActivity
 import io.github.alelk.pws.android.app.adapter.FavoritesRecyclerViewAdapter
 import io.github.alelk.pws.android.app.model.FavoritesViewModel
-import dagger.hilt.android.AndroidEntryPoint
-import io.github.alelk.pws.android.app.R
+import io.github.alelk.pws.database.dao.Favorite
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -54,12 +55,19 @@ class FavoritesFragment @Inject constructor() : Fragment() {
   private var menuSortByAddedDate: MenuItem? = null
   private var menuSortByName: MenuItem? = null
   private var menuSortByNumber: MenuItem? = null
+  private var currentOrderDirection: String = "ASC"
 
   private val favoritesViewModel: FavoritesViewModel by viewModels()
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    sortOrder = sharedPrefs.getInt(KEY_SORTED_BY, SORT_BY_ADDED_DATE)
+    if (savedInstanceState != null) {
+      sortOrder = savedInstanceState.getInt(KEY_SORTED_BY, SORT_BY_ADDED_DATE)
+      currentOrderDirection = savedInstanceState.getString(KEY_ORDER_DIRECTION, "ASC") ?: "ASC"
+    } else {
+      sortOrder = sharedPrefs.getInt(KEY_SORTED_BY, SORT_BY_ADDED_DATE)
+      currentOrderDirection = sharedPrefs.getString(KEY_ORDER_DIRECTION, "ASC") ?: "ASC"
+    }
     setHasOptionsMenu(true)
   }
 
@@ -91,9 +99,9 @@ class FavoritesFragment @Inject constructor() : Fragment() {
       observeFavoritesJob?.cancel()
       observeFavoritesJob = viewLifecycleOwner.lifecycleScope.launch {
         when (sortOrder) {
-          SORT_BY_NUMBER -> favoritesViewModel.getFavoritesSortedByNumber().collect { updateUI(it) }
-          SORT_BY_NAME -> favoritesViewModel.getFavoritesSortedByName().collect { updateUI(it) }
-          SORT_BY_ADDED_DATE -> favoritesViewModel.getFavoritesSortedByDate().collect { updateUI(it) }
+          SORT_BY_NUMBER -> favoritesViewModel.getFavoritesSortedByNumber(order = currentOrderDirection).collect { updateUI(it) }
+          SORT_BY_NAME -> favoritesViewModel.getFavoritesSortedByName(order = currentOrderDirection).collect { updateUI(it) }
+          SORT_BY_ADDED_DATE -> favoritesViewModel.getFavoritesSortedByDate(order = currentOrderDirection).collect { updateUI(it) }
         }
       }
     }
@@ -104,10 +112,14 @@ class FavoritesFragment @Inject constructor() : Fragment() {
   }
 
   override fun onSaveInstanceState(outState: Bundle) {
+    outState.putInt(KEY_SORTED_BY, sortOrder)
+    outState.putString(KEY_ORDER_DIRECTION, currentOrderDirection)
     super.onSaveInstanceState(outState)
+    
     with(sharedPrefs.edit()) {
       putInt(KEY_SORTED_BY, sortOrder)
-      apply()
+      putString(KEY_ORDER_DIRECTION, currentOrderDirection)
+      commit()
     }
   }
 
@@ -116,25 +128,44 @@ class FavoritesFragment @Inject constructor() : Fragment() {
     menuSortByName = menu.add(0, 2, 0, R.string.sort_by_name)
     menuSortByNumber = menu.add(0, 3, 0, R.string.sort_by_number)
     super.onCreateOptionsMenu(menu, inflater)
+    updateSortMenuIcons()
   }
 
   override fun onOptionsItemSelected(item: MenuItem): Boolean {
-    val result = when (item.itemId) {
+    val handled = when (item.itemId) {
       menuSortByNumber!!.itemId -> {
-        this.sortOrder = SORT_BY_NUMBER
+        if (sortOrder == SORT_BY_NUMBER) {
+          currentOrderDirection = if (currentOrderDirection == "ASC") "DESC" else "ASC"
+        } else {
+          sortOrder = SORT_BY_NUMBER
+          currentOrderDirection = "ASC"
+        }
         observeFavorites()
+        updateSortMenuIcons()
         true
       }
 
       menuSortByName!!.itemId -> {
-        this.sortOrder = SORT_BY_NAME
+        if (sortOrder == SORT_BY_NAME) {
+          currentOrderDirection = if (currentOrderDirection == "ASC") "DESC" else "ASC"
+        } else {
+          sortOrder = SORT_BY_NAME
+          currentOrderDirection = "ASC"
+        }
         observeFavorites()
+        updateSortMenuIcons()
         true
       }
 
       menuSortByAddedDate!!.itemId -> {
-        this.sortOrder = SORT_BY_ADDED_DATE
+        if (sortOrder == SORT_BY_ADDED_DATE) {
+          currentOrderDirection = if (currentOrderDirection == "ASC") "DESC" else "ASC"
+        } else {
+          sortOrder = SORT_BY_ADDED_DATE
+          currentOrderDirection = "ASC"
+        }
         observeFavorites()
+        updateSortMenuIcons()
         true
       }
 
@@ -142,9 +173,35 @@ class FavoritesFragment @Inject constructor() : Fragment() {
     }
     with(sharedPrefs.edit()) {
       putInt(KEY_SORTED_BY, sortOrder)
+      putString(KEY_ORDER_DIRECTION, currentOrderDirection)
       apply()
     }
-    return result
+    return handled
+  }
+
+  override fun onPrepareOptionsMenu(menu: Menu) {
+    (menu as MenuBuilder).setOptionalIconsVisible(true)
+  }
+
+  private fun updateSortMenuIcons() {
+    if (sortOrder == SORT_BY_ADDED_DATE) {
+      val icon = if (currentOrderDirection == "ASC") R.drawable.ic_arrow_upward else R.drawable.ic_arrow_downward
+      menuSortByAddedDate?.setIcon(icon)
+    } else {
+      menuSortByAddedDate?.setIcon(null)
+    }
+    if (sortOrder == SORT_BY_NAME) {
+      val icon = if (currentOrderDirection == "ASC") R.drawable.ic_arrow_upward else R.drawable.ic_arrow_downward
+      menuSortByName?.setIcon(icon)
+    } else {
+      menuSortByName?.setIcon(null)
+    }
+    if (sortOrder == SORT_BY_NUMBER) {
+      val icon = if (currentOrderDirection == "ASC") R.drawable.ic_arrow_upward else R.drawable.ic_arrow_downward
+      menuSortByNumber?.setIcon(icon)
+    } else {
+      menuSortByNumber?.setIcon(null)
+    }
   }
 
   companion object {
@@ -152,5 +209,6 @@ class FavoritesFragment @Inject constructor() : Fragment() {
     const val SORT_BY_NUMBER = 3
     const val SORT_BY_NAME = 4
     private const val KEY_SORTED_BY = "favorites-sorted-by"
+    private const val KEY_ORDER_DIRECTION = "favorites-order-direction"
   }
 }

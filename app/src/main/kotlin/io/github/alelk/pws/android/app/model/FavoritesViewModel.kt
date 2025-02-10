@@ -10,9 +10,9 @@ import javax.inject.Inject
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(database: PwsDatabase) : ViewModel() {
   private val favoritesDao = database.favoriteDao()
-  fun getFavoritesSortedByDate(): Flow<List<Favorite>> = favoritesDao.getAll()
-  fun getFavoritesSortedByName(): Flow<List<Favorite>> = favoritesDao.getAll(sort = "songName")
-  fun getFavoritesSortedByNumber(): Flow<List<Favorite>> = favoritesDao.getAll(sort = "songNumber")
+  fun getFavoritesSortedByDate(order: String = "ASC"): Flow<List<Favorite>> = favoritesDao.getAll(sort = "default", order = order)
+  fun getFavoritesSortedByName(order: String = "ASC"): Flow<List<Favorite>> = favoritesDao.getAll(sort = "songName", order = order)
+  fun getFavoritesSortedByNumber(order: String = "ASC"): Flow<List<Favorite>> = favoritesDao.getAll(sort = "songNumber", order = order)
 
   @Deprecated("use toggleFavorite on SongViewModel")
   suspend fun toggleFavorite(songNumberId: Long) = favoritesDao.toggleFavorite(songNumberId)

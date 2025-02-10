@@ -48,17 +48,18 @@ interface FavoriteDao {
       b.displayshortname as bookShortName
     FROM favorites f 
     INNER JOIN psalmnumbers pn on f.psalmnumberid = pn._id 
-    INNER JOIN psalms p on pn.psalmid=p._id
-    INNER JOIN books b on pn.bookid=b._id
-    ORDER BY
-    CASE
-      WHEN :sort = 'songName' THEN p.name 
-      WHEN :sort = 'songNumber' THEN pn.number
-      ELSE f.position
-    END ASC
+    INNER JOIN psalms p on pn.psalmid = p._id
+    INNER JOIN books b on pn.bookid = b._id
+    ORDER BY 
+      CASE WHEN :sort = 'songName' AND :order = 'ASC' THEN p.name END ASC,
+      CASE WHEN :sort = 'songName' AND :order = 'DESC' THEN p.name END DESC,
+      CASE WHEN :sort = 'songNumber' AND :order = 'ASC' THEN pn.number END ASC,
+      CASE WHEN :sort = 'songNumber' AND :order = 'DESC' THEN pn.number END DESC,
+      CASE WHEN :sort NOT IN ('songName', 'songNumber') AND :order = 'ASC' THEN f.position END ASC,
+      CASE WHEN :sort NOT IN ('songName', 'songNumber') AND :order = 'DESC' THEN f.position END DESC
     """
   )
-  fun getAll(sort: String = "default"): Flow<List<Favorite>>
+  fun getAll(sort: String = "default", order: String = "ASC"): Flow<List<Favorite>>
 
   @Transaction
   @Query("SELECT * FROM favorites ORDER BY position DESC")
